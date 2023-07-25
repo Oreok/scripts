@@ -1,0 +1,80 @@
+#!/usr/bin/env python3 
+import argparse
+import serial
+import sys
+import os
+import math
+import requests
+from bs4 import BeautifulSoup
+import re
+from prettytable import PrettyTable
+from datetime import date
+
+def mensa_grap_thisweek():
+    URL = "https://www.studentenwerk-wuerzburg.de/bamberg/essen-trinken/speiseplaene/mensa-austrasse-bamberg.html"
+
+    page = requests.get(URL)
+    soup = BeautifulSoup(page.content, "html.parser")
+    result = soup.find("div", class_="week currentweek")
+    week = result.find_all("div", class_="day")
+
+    woche = []
+
+    for day in week:
+        tag = [] 
+        datum = day.find("h5")
+        essen = day.find_all("article", class_="menu")
+        tag.append(datum.text)
+        tagesessen = []
+
+        for essen in essen:
+            meal = essen.find("div", class_="title")
+            price = str(essen.find("div", class_="price"))
+            if price != "None":
+                rightprice = str(re.findall(">....<", price)).replace("['>","").replace("<']","")
+            else:
+                rightprice = "- "
+            tagesessen.append([meal.text, rightprice + "€"])
+        tag.append(tagesessen)
+        woche.append(tag)
+    return woche
+
+def main(all):
+    essen = mensa_grap_thisweek()
+    mealTable = PrettyTable(["Essen", "Preis"])
+
+    if all:
+        for day in essen:
+            mealTable.add_row([day[0], ""])
+            for essen in day[1]:
+                mealTable.add_row([essen[0], essen[1]])
+            mealTable.add_row(["", ""])
+    else:
+        for day in essen:
+            today = date.today()
+
+            if today.strftime("%d.%m") in day[0]:
+                mealTable.add_row([day[0], ""])
+                for essen in day[1]:
+                    mealTable.add_row([essen[0], essen[1]])
+
+    mealTable.align = "l"
+    print(mealTable)
+
+
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Mensa Speiseplan")
+    parser.add_argument("-a", "--all", action='store_true', help="set for whole week")
+
+    args = parser.parse_args()
+    try:
+        main(args.all)
+    except KeyboardInterrupt:
+        print("Interrupted")
+        try:
+            sys.exit(130)
+        except SystemExit:
+            os._exit(130)
+
